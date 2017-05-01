@@ -1,79 +1,144 @@
-import React, { Component, PropTypes } from 'react';
-
+/* eslint-disable no-console */
+import React, { Component, PropTypes as T } from 'react';
 
 class CarouselNode {
+  next;
+  prev;
+  el;
 
-  constructor(el, prev = null, next = null) {
-    this.el = el;
-    this.prev = prev;
-    this.next = next;
+  constructor() {
+    this.next = null;
+    this.prev = null;
+    this.el = null;
   }
-
 }
 
+/**
+ * Carousel Container Component: Provide initial carousel components as
+ * children, with the first component to be displayed provided as the first
+ * child.
+ *
+ * @class Carousel
+ * @extends {Component}
+ *
+ * @property {Object} state - Carousel component's state
+ */
 class Carousel extends Component {
+  static propTypes = {
+    children: T.arrayOf(T.node),
+    style: T.object
+  };
+
+  /**
+   * Append node to DLL as new tail
+   * @memberOf Carousel
+   *
+   * @static
+   * @param {...JSX.Element} els - Carousel component's elements
+   * @param {CarouselNode} h - Current 'Head' node of Carousel
+   * @param {CarouselNode} t - Current 'Tail' node of Carousel
+   *
+   * @return {object} New 'head' and 'tail' node of Carousel
+   */
+  static appendNode = (els, h, t) => {
+
+    els.forEach(el => {
+      const newNode = new CarouselNode();
+      newNode.el = el;
+
+      if (h) {
+        let curr = h;
+        while (curr && curr.next) {
+          curr = curr.next;
+        }
+        curr.next = newNode;
+        newNode.prev = curr;
+        t = newNode;
+      } else {
+        h = t = newNode;
+      }
+    });
+
+    return { head: h, tail: t };
+  };
 
   constructor(props) {
     super(props);
-
-    const { children, idx } = props;
-    const components =
-      children.map((el, i, arr) => new CarouselNode(el, arr[i - 1], arr[i + 1]));
+    const { children: nodes } = props;
 
     this.state = {
-      idx,
-      components
+      head: null,
+      tail: null,
+      curr: null,
+      nodes: [...nodes]
     };
   }
 
-  componentWillReceiveProps(nextProps) {
-    const { children, idx } = nextProps;
-    const { components } = this.state;
+  /**
+   * Called before the component is mounted to the DOM
+   *
+   * @return {void}
+   * @memberOf Carousel
+   */
+  componentWillMount() {
+    const { head, tail, nodes } = this.state;
 
-    const innerIdx = formatIdx(idx, Math.ceil((components.length + children.length) / 2));
+    const newState = Carousel.appendNode([...nodes], head, tail),
+      { head: curr } = newState;
 
-    this.setState((prev) => ({ prev, idx: innerIdx }));
+    this.setState(prev => ({ ...prev, ...newState, curr }));
   }
 
-  render() {
-    const { idx, components } = this.state;
-    const { style, handleLeft, handleRight } = this.props;
+  /*  Component Lifecycle Methods
 
-    const DisplayElem = components[idx];
+      componentDidMount() {
+      }
+
+      componentWillReceiveProps(nextProps) {
+
+      }
+  */
+
+  shouldComponentUpdate(_, { curr: el, nodes: newNodes }) {
+    const { curr: nEl, nodes } = this.state;
+
+    return (el !== nEl || nodes.length !== newNodes.length);
+  }
+
+  /*
+      componentWillUpdate(nextProps, nextState) {
+      }
+
+      componentDidUpdate(prevProps, prevState) {
+      }
+
+      componentWillUnmount() {
+      }
+
+  */
+
+  handleLeft = () => {
+    this.setState(({ tail, curr, ...rest }) => ({ ...rest, tail, curr: curr.prev || tail }));
+  };
+
+  handleRight = () => {
+    this.setState(({ head, curr, ...rest }) => ({ ...rest, head, curr: curr.next || head }));
+  };
+
+  render() {
+    const { curr: displayElem } = this.state;
+    const { style } = this.props;
 
     return (
-      <div>
-        <div style={style}>
-          <button onClick={handleLeft}>{'<'}</button>
-          <span style={{ alignSelf: 'center' }}>
-            {DisplayElem.el}
-          </span>
-          <button onClick={handleRight}>{'>'}</button>
-        </div>
-        <p>Current IDX: {idx}</p>
+      <div style={style}>
+        <button onClick={this.handleLeft}>{'<'}</button>
+        <span style={{ alignSelf: 'center' }}>
+          {displayElem && displayElem.el}
+        </span>
+        <button onClick={this.handleRight}>{'>'}</button>
       </div>
     );
   }
-
 }
 
-const addComponent = (carousel, component) => {
-
-  const newPony = new CarouselNode(component);
-  console.log(newPony);
-  carousel.setState(
-    ({ components, ...rest }) => ({ components: [...components, newPony], idx: rest.idx })
-  );
-};
-
-const formatIdx = (idx, arrLen) => (idx % arrLen + arrLen) % arrLen;
-
-Carousel.propTypes = {
-  children: PropTypes.any,
-  handleLeft: PropTypes.func,
-  handleRight: PropTypes.func,
-  idx: PropTypes.number,
-  style: PropTypes.object
-};
-
-export { Carousel, addComponent };
+export { Carousel };
